@@ -220,6 +220,10 @@ impl<'e, E: ExecutorView> ModuleResolver for StorageAdapter<'e, E> {
         self.executor_view
             .get_module_bytes(&StateKey::access_path(access_path))
     }
+
+    fn get_checksum(&self, _module_id: &ModuleId) -> Result<Option<[u8; 32]>, Self::Error> {
+        unimplemented!("not implemented in aptos")
+    }
 }
 
 impl<'e, E: ExecutorView> TableResolver for StorageAdapter<'e, E> {

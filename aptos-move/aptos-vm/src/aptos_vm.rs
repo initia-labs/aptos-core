@@ -478,7 +478,11 @@ impl AptosVM {
         }
     }
 
-    fn inject_abort_info_if_available(&self, status: ExecutionStatus) -> ExecutionStatus {
+    fn inject_abort_info_if_available(
+        &self,
+        session: &SessionExt,
+        status: ExecutionStatus,
+    ) -> PartialVMResult<ExecutionStatus> {
         match status {
             ExecutionStatus::MoveAbort {
                 location: AbortLocation::Module(module),
@@ -486,15 +490,15 @@ impl AptosVM {
                 ..
             } => {
                 let info = self
-                    .extract_module_metadata(&module)
+                    .extract_module_metadata(session, &module)?
                     .and_then(|m| m.extract_abort_info(code));
-                ExecutionStatus::MoveAbort {
+                Ok(ExecutionStatus::MoveAbort {
                     location: AbortLocation::Module(module),
                     code,
                     info,
-                }
+                })
             },
-            _ => status,
+            _ => Ok(status),
         }
     }
 
@@ -516,7 +520,9 @@ impl AptosVM {
         if is_account_init_for_sponsored_transaction {
             let mut session = self.new_session(resolver, SessionId::run_on_abort(txn_data));
             // Abort information is injected using the user defined error in the Move contract.
-            let status = self.inject_abort_info_if_available(status);
+            let status = self
+                .inject_abort_info_if_available(&session, status)
+                .map_err(|e| e.finish(Location::Undefined))?;
 
             create_account_if_does_not_exist(&mut session, gas_meter, txn_data.sender())
                 // if this fails, it is likely due to out of gas, so we try again without metering
@@ -600,7 +606,9 @@ impl AptosVM {
                 .map(|set| (set, fee_statement, status))
         } else {
             let mut session = self.new_session(resolver, SessionId::epilogue_meta(txn_data));
-            let status = self.inject_abort_info_if_available(status);
+            let status = self
+                .inject_abort_info_if_available(&session, status)
+                .map_err(|e| e.finish(Location::Undefined))?;
 
             let fee_statement =
                 AptosVM::fee_statement_from_gas_meter(txn_data, gas_meter, ZERO_STORAGE_REFUND);
@@ -987,14 +995,6 @@ impl AptosVM {
             MoveValue::vector_u8(payload_bytes),
         ]);
         let respawned_session = if let Err(execution_error) = execution_result {
-            // Invalidate the loader cache in case there was a new module loaded from a module
-            // publish request that failed.
-            // This is redundant with the logic in execute_user_transaction but unfortunately is
-            // necessary here as executing the underlying call can fail without this function
-            // returning an error to execute_user_transaction.
-            if *new_published_modules_loaded {
-                self.move_vm.mark_loader_cache_as_invalid();
-            };
             self.failure_multisig_payload_cleanup(
                 resolver,
                 execution_error,
@@ -1372,17 +1372,8 @@ impl AptosVM {
         log_context: &AdapterLogSchema,
         gas_meter: &mut impl AptosGasMeter,
         storage_gas_params: &StorageGasParameters,
-        new_published_modules_loaded: bool,
+        _new_published_modules_loaded: bool,
     ) -> (VMStatus, VMOutput) {
-        // Invalidate the loader cache in case there was a new module loaded from a module
-        // publish request that failed.
-        // This ensures the loader cache is flushed later to align storage with the cache.
-        // None of the modules in the bundle will be committed to storage,
-        // but some of them may have ended up in the cache.
-        if new_published_modules_loaded {
-            self.move_vm.mark_loader_cache_as_invalid();
-        };
-
         self.failed_transaction_cleanup(
             err,
             gas_meter,
@@ -1816,11 +1807,15 @@ impl AptosVM {
         Ok((VMStatus::Executed, output))
     }
 
-    fn extract_module_metadata(&self, module: &ModuleId) -> Option<Arc<RuntimeModuleMetadataV1>> {
+    fn extract_module_metadata(
+        &self,
+        session: &SessionExt,
+        module: &ModuleId,
+    ) -> PartialVMResult<Option<Arc<RuntimeModuleMetadataV1>>> {
         if self.features().is_enabled(FeatureFlag::VM_BINARY_FORMAT_V6) {
-            aptos_framework::get_vm_metadata(&self.move_vm, module)
+            aptos_framework::get_vm_metadata(session.borrow_inner(), module)
         } else {
-            aptos_framework::get_vm_metadata_v0(&self.move_vm, module)
+            aptos_framework::get_vm_metadata_v0(session.borrow_inner(), module)
         }
     }
 
@@ -1877,7 +1872,9 @@ impl AptosVM {
         gas_meter: &mut impl AptosGasMeter,
     ) -> anyhow::Result<Vec<Vec<u8>>> {
         let func_inst = session.load_function(&module_id, &func_name, &type_args)?;
-        let metadata = vm.extract_module_metadata(&module_id);
+        let metadata = vm
+            .extract_module_metadata(&session, &module_id)
+            .map_err(|e| e.finish(Location::Undefined))?;
         let arguments = verifier::view_function::validate_view_function(
             session,
             arguments,

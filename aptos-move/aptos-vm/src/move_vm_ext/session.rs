@@ -29,7 +29,7 @@ use move_core_types::{
     value::MoveTypeLayout,
     vm_status::StatusCode,
 };
-use move_vm_runtime::{move_vm::MoveVM, session::Session};
+use move_vm_runtime::{runtime::VMRuntime, session::Session, session_cache::SessionCache};
 use move_vm_types::{value_serde::serialize_and_allow_delayed_values, values::Value};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -202,9 +202,12 @@ impl<'r, 'l> SessionExt<'r, 'l> {
         }
     }
 
-    pub fn finish(self, configs: &ChangeSetConfigs) -> VMResult<VMChangeSet> {
-        let move_vm = self.inner.get_move_vm();
+    pub fn borrow_inner(&self) -> &Session<'r, 'l> {
+        &self.inner
+    }
 
+    pub fn finish(self, configs: &ChangeSetConfigs) -> VMResult<VMChangeSet> {
+        let runtime = self.get_runtime();
         let resource_converter = |value: Value,
                                   layout: MoveTypeLayout,
                                   has_aggregator_lifting: bool|
@@ -228,12 +231,12 @@ impl<'r, 'l> SessionExt<'r, 'l> {
             })
         };
 
-        let (change_set, mut extensions) = self
+        let (change_set, session_cache, mut extensions) = self
             .inner
-            .finish_with_extensions_with_custom_effects(&resource_converter)?;
+            .finish_with_extensions_with_custom_effects_with_session_cache(&resource_converter)?;
 
         let (change_set, resource_group_change_set) =
-            Self::split_and_merge_resource_groups(move_vm, self.remote, change_set)
+            Self::split_and_merge_resource_groups(runtime, &session_cache, self.remote, change_set)
                 .map_err(|e| e.finish(Location::Undefined))?;
 
         let table_context: NativeTableContext = extensions.remove();
@@ -344,7 +347,8 @@ impl<'r, 'l> SessionExt<'r, 'l> {
     /// V1 Resource group change set behavior keeps ops for individual resources separate, not
     /// merging them into the a single op corresponding to the whole resource group (V0).
     fn split_and_merge_resource_groups(
-        runtime: &MoveVM,
+        runtime: &VMRuntime,
+        session_cache: &SessionCache,
         remote: &dyn AptosMoveResolver,
         change_set: ChangeSet,
     ) -> PartialVMResult<(ChangeSet, ResourceGroupChangeSet)> {
@@ -375,10 +379,10 @@ impl<'r, 'l> SessionExt<'r, 'l> {
             let (modules, resources) = account_changeset.into_inner();
 
             for (struct_tag, blob_op) in resources {
-                let resource_group_tag = runtime
-                    .with_module_metadata(&struct_tag.module_id(), |md| {
+                let resource_group_tag =
+                    runtime.with_module_metadata(session_cache, &struct_tag.module_id(), |md| {
                         get_resource_group_from_metadata(&struct_tag, md)
-                    });
+                    })?;
 
                 if let Some(resource_group_tag) = resource_group_tag {
                     if resource_groups

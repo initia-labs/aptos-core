@@ -9,6 +9,7 @@ use aptos_types::{
 use lru::LruCache;
 use move_binary_format::{
     access::ModuleAccess,
+    errors::PartialVMResult,
     file_format::{
         Ability, AbilitySet, CompiledScript, IdentifierIndex, SignatureToken,
         StructFieldInformation, TableIndex,
@@ -22,7 +23,7 @@ use move_core_types::{
     language_storage::{ModuleId, StructTag},
     metadata::Metadata,
 };
-use move_vm_runtime::move_vm::MoveVM;
+use move_vm_runtime::session::Session;
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, collections::BTreeMap, env, sync::Arc};
 use thiserror::Error;
@@ -198,16 +199,19 @@ pub fn get_metadata_v0(md: &[Metadata]) -> Option<Arc<RuntimeModuleMetadataV1>> 
 }
 
 /// Extract metadata from the VM, upgrading V0 to V1 representation as needed
-pub fn get_vm_metadata(vm: &MoveVM, module_id: &ModuleId) -> Option<Arc<RuntimeModuleMetadataV1>> {
-    vm.with_module_metadata(module_id, get_metadata)
+pub fn get_vm_metadata(
+    session: &Session,
+    module_id: &ModuleId,
+) -> PartialVMResult<Option<Arc<RuntimeModuleMetadataV1>>> {
+    session.with_module_metadata(module_id, get_metadata)
 }
 
 /// Extract metadata from the VM, legacy V0 format upgraded to V1
 pub fn get_vm_metadata_v0(
-    vm: &MoveVM,
+    session: &Session,
     module_id: &ModuleId,
-) -> Option<Arc<RuntimeModuleMetadataV1>> {
-    vm.with_module_metadata(module_id, get_metadata_v0)
+) -> PartialVMResult<Option<Arc<RuntimeModuleMetadataV1>>> {
+    session.with_module_metadata(module_id, get_metadata_v0)
 }
 
 /// Check if the metadata has unknown key/data types
