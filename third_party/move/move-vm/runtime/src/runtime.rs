@@ -72,7 +72,7 @@ impl VMRuntime {
         native_extensions: NativeContextExtensions<'r>,
     ) -> Session<'r, '_> {
         Session {
-            runtime: &self,
+            runtime: self,
             data_cache: TransactionDataCache::new(remote),
             session_cache: SessionCache::new(
                 remote,
@@ -598,7 +598,7 @@ impl VMRuntime {
             },
         ) = self
             .loader
-            .load_script(script.borrow(), &ty_args, session_cache)?;
+            .load_script(session_cache, script.borrow(), &ty_args)?;
         // execute the function
         self.execute_function_impl(
             func,

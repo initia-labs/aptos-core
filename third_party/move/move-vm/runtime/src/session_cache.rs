@@ -107,7 +107,7 @@ impl<'r> SessionCache<'r> {
         let arc_module = Arc::new(module);
         self.modules.write().insert(
             module_id.clone(),
-            (module_blob.len(), checksum.clone(), arc_module),
+            (module_blob.len(), checksum, arc_module),
         );
         self.checksums.write().insert(module_id.clone(), checksum);
 
@@ -148,7 +148,7 @@ impl<'r> SessionCache<'r> {
                 let arc_module = Arc::new(module);
                 self.modules.write().insert(
                     module_id.clone(),
-                    (module_blob.len(), checksum.clone(), arc_module.clone()),
+                    (module_blob.len(), checksum, arc_module.clone()),
                 );
 
                 Ok((module_blob.len(), checksum, arc_module))
@@ -174,7 +174,7 @@ impl<'r> SessionCache<'r> {
     }
 
     fn deserialize_module(&self, module_blob: &Bytes) -> PartialVMResult<CompiledModule> {
-        CompiledModule::deserialize_with_config(&module_blob, &self.deserializer_config).map_err(
+        CompiledModule::deserialize_with_config(module_blob, &self.deserializer_config).map_err(
             |err| {
                 let msg = format!("Deserialization error: {:?}", err);
                 PartialVMError::new(StatusCode::CODE_DESERIALIZATION_ERROR).with_message(msg)
