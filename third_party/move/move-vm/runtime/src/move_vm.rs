@@ -64,7 +64,10 @@ impl MoveVM {
         Session {
             runtime: &self.runtime,
             data_cache: TransactionDataCache::new(remote),
-            session_cache: SessionCache::new(remote),
+            session_cache: SessionCache::new(
+                remote,
+                self.runtime.loader.vm_config.deserializer_config.clone(),
+            ),
             native_extensions,
         }
     }
@@ -76,7 +79,7 @@ impl MoveVM {
     ) -> VMResult<MoveTypeLayout> {
         self.runtime
             .loader
-            .get_fully_annotated_type_layout(type_tag, session_cache, session_cache)
+            .get_fully_annotated_type_layout(type_tag, session_cache)
     }
 
     pub fn flush_unused_module_cache(&self) {

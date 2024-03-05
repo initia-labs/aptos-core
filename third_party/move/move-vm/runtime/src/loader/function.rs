@@ -15,7 +15,7 @@ use crate::native_functions::{NativeFunction, NativeFunctions, UnboxedNativeFunc
 
 use super::{
     access_specifier_loader::load_access_specifier, module::Module, resolver::Resolver,
-    ChecksumStorage, Loader,
+    SessionStorage, Loader,
 };
 
 // A simple wrapper for the "owner" of the function (Module or Script)
@@ -154,12 +154,12 @@ impl Function {
     pub(crate) fn get_resolver<'a>(
         &self,
         loader: &'a Loader,
-        checksum_storage: &dyn ChecksumStorage,
+        cache_storage: &dyn SessionStorage,
     ) -> Resolver<'a> {
         match &self.scope {
             Scope::Module(module_id) => {
                 let module = loader
-                    .get_module(module_id, checksum_storage)
+                    .get_module(module_id, cache_storage)
                     .expect("ModuleId on Function must exist")
                     .expect("ModuleId on Function must exist");
                 Resolver::for_module(loader, module)

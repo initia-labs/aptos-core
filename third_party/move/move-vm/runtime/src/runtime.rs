@@ -6,10 +6,10 @@ use crate::{
     config::VMConfig,
     data_cache::TransactionDataCache,
     interpreter::Interpreter,
-    loader::{ChecksumStorageForVerify, Function, LoadedFunction, Loader},
+    loader::{Function, LoadedFunction, Loader, SessionStorageForVerify},
     native_extensions::NativeContextExtensions,
     native_functions::{NativeFunction, NativeFunctions},
-    session::{LoadedFunctionInstantiation, SerializedReturnValues},
+    session::{LoadedFunctionInstantiation, SerializedReturnValues, Session},
     session_cache::SessionCache,
 };
 use bytes::Bytes;
@@ -26,6 +26,7 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, TypeTag},
     metadata::Metadata,
+    resolver::MoveResolver,
     value::MoveTypeLayout,
     vm_status::StatusCode,
 };
@@ -54,6 +55,31 @@ impl VMRuntime {
         Ok(VMRuntime {
             loader: Loader::new(NativeFunctions::new(natives)?, vm_config),
         })
+    }
+
+    /// Create a new Session backed by the given storage.
+    pub fn new_session<'r>(
+        &self,
+        remote: &'r impl MoveResolver<PartialVMError>,
+    ) -> Session<'r, '_> {
+        self.new_session_with_extensions(remote, NativeContextExtensions::default())
+    }
+
+    /// Create a new session, as in `new_session`, but provide native context extensions.
+    pub fn new_session_with_extensions<'r>(
+        &self,
+        remote: &'r impl MoveResolver<PartialVMError>,
+        native_extensions: NativeContextExtensions<'r>,
+    ) -> Session<'r, '_> {
+        Session {
+            runtime: &self,
+            data_cache: TransactionDataCache::new(remote),
+            session_cache: SessionCache::new(
+                remote,
+                self.loader.vm_config.deserializer_config.clone(),
+            ),
+            native_extensions,
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -126,10 +152,12 @@ impl VMRuntime {
         for module in &compiled_modules {
             let module_id = module.self_id();
 
-            if session_cache.exists_module(&module_id)? && compat.need_check_compat() {
-                let old_module_ref =
-                    self.loader
-                        .load_module(&module_id, session_cache, session_cache)?;
+            if session_cache
+                .exists_module(&module_id)
+                .map_err(|e| e.finish(Location::Module(module_id.clone())))?
+                && compat.need_check_compat()
+            {
+                let old_module_ref = self.loader.load_module(&module_id, session_cache)?;
                 let old_module = old_module_ref.compiled_module();
                 let old_m = normalized::Module::new(old_module);
                 let new_m = normalized::Module::new(module);
@@ -146,8 +174,7 @@ impl VMRuntime {
         // Perform bytecode and loading verification. Modules must be sorted in topological order.
         self.loader.verify_module_bundle_for_publication(
             &compiled_modules,
-            session_cache,
-            &ChecksumStorageForVerify::new(session_cache, &checksums),
+            &SessionStorageForVerify::new(session_cache, &checksums),
         )?;
 
         // NOTE: we want to (informally) argue that all modules pass the linking check before being
@@ -207,10 +234,14 @@ impl VMRuntime {
         for (module, blob) in compiled_modules.into_iter().zip(modules.into_iter()) {
             let module_id = module.self_id();
             let checksum = checksums.remove(&module_id).unwrap();
-            let is_republishing = session_cache.exists_module(&module_id)?;
+            let is_republishing = session_cache
+                .exists_module(&module_id)
+                .map_err(|e| e.finish(Location::Module(module_id.clone())))?;
 
             let module_bytes: Bytes = blob.into();
-            session_cache.record_publish(&module_id, module_bytes.clone(), checksum);
+            session_cache
+                .record_publish(&module_id, module_bytes.clone(), checksum)
+                .map_err(|e| e.finish(Location::Module(module_id.clone())))?;
             data_store.publish_module(&module_id, module_bytes, is_republishing)?;
         }
         Ok(())
@@ -466,13 +497,9 @@ impl VMRuntime {
         bypass_declared_entry_check: bool,
     ) -> VMResult<SerializedReturnValues> {
         // load the function
-        let (module, function, instantiation) = self.loader.load_function(
-            module,
-            function_name,
-            &ty_args,
-            session_cache,
-            session_cache,
-        )?;
+        let (module, function, instantiation) =
+            self.loader
+                .load_function(module, function_name, &ty_args, session_cache)?;
 
         self.execute_function_instantiation(
             LoadedFunction { module, function },
@@ -571,7 +598,7 @@ impl VMRuntime {
             },
         ) = self
             .loader
-            .load_script(script.borrow(), &ty_args, session_cache, session_cache)?;
+            .load_script(script.borrow(), &ty_args, session_cache)?;
         // execute the function
         self.execute_function_impl(
             func,
@@ -592,7 +619,7 @@ impl VMRuntime {
         type_tag: &TypeTag,
     ) -> VMResult<MoveTypeLayout> {
         self.loader
-            .get_fully_annotated_type_layout(type_tag, session_cache, session_cache)
+            .get_fully_annotated_type_layout(type_tag, session_cache)
     }
 
     pub fn flush_unused_module_cache(&self) {

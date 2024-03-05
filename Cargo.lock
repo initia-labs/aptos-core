@@ -973,6 +973,7 @@ dependencies = [
  "aptos-crypto-derive",
  "aptos-executor-types",
  "aptos-infallible",
+ "aptos-logger",
  "aptos-short-hex-str",
  "aptos-types",
  "bcs 0.1.4",
@@ -10449,9 +10450,9 @@ dependencies = [
 
 [[package]]
 name = "mio"
-version = "0.8.10"
+version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f3d0b296e374a4e6f3c7b0a1f5a51d748a0d34c85e7dc48fc3fa9a87657fe09"
+checksum = "a4a650543ca06a924e8b371db273b2756685faae30f8487da1b56505a8f78b0c"
 dependencies = [
  "libc",
  "log",
@@ -10804,6 +10805,7 @@ dependencies = [
  "bcs 0.1.4",
  "bytes",
  "ethnum",
+ "hashbrown 0.14.3",
  "hex",
  "num 0.4.1",
  "once_cell",
@@ -11443,6 +11445,7 @@ dependencies = [
  "better_any",
  "bytes",
  "fail 0.4.0",
+ "hashbrown 0.14.3",
  "hex",
  "lazy_static",
  "lru 0.12.3",
@@ -11460,6 +11463,7 @@ dependencies = [
  "smallbitvec",
  "tracing",
  "triomphe",
+ "typed-arena",
 ]
 
 [[package]]
@@ -15089,7 +15093,6 @@ dependencies = [
  "aptos-vault-client",
  "aptos-vm",
  "aptos-vm-genesis",
- "ark-ff",
  "async-trait",
  "base64 0.13.1",
  "bcs 0.1.4",

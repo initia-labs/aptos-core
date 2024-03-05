@@ -16,7 +16,7 @@ use super::{
     cache::ModuleCache,
     function::{Function, FunctionHandle, FunctionInstantiation, Scope},
     type_loader::intern_type,
-    ChecksumStorage,
+    SessionStorage,
 };
 
 // A Script is very similar to a `CompiledScript` but data is "transformed" to a representation
@@ -52,7 +52,7 @@ impl Script {
         script: CompiledScript,
         script_hash: &Checksum,
         module_cache: &ModuleCache,
-        checksum_storage: &dyn ChecksumStorage,
+        session_storage: &dyn SessionStorage,
     ) -> PartialVMResult<Self> {
         let mut struct_names = vec![];
         for struct_handle in script.struct_handles() {
@@ -65,7 +65,7 @@ impl Script {
                 name: struct_name.to_owned(),
             };
 
-            let checksum = checksum_storage.load_checksum(&module_id)?;
+            let checksum = session_storage.load_checksum(&module_id)?;
             module_cache
                 .get_struct_type_by_identifier(&checksum, &id)?
                 .check_compatibility(struct_handle)?;

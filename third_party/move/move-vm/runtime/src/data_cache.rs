@@ -60,7 +60,7 @@ pub struct TransactionDataCache<'r> {
 impl<'r> TransactionDataCache<'r> {
     /// Create a `TransactionDataCache` with a `RemoteCache` that provides access to data
     /// not updated in the transaction.
-    pub fn new(remote: &'r impl MoveResolver<PartialVMError>) -> Self {
+    pub(crate) fn new(remote: &'r impl MoveResolver<PartialVMError>) -> Self {
         TransactionDataCache {
             remote,
             account_map: BTreeMap::new(),

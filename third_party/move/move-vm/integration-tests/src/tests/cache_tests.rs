@@ -116,8 +116,10 @@ fn test_update_modules(
             let session_cache_module = session
                 .load_module_from_cache(&module_id)
                 .unwrap_or_else(|| panic!("module should exist in session cache"));
+            let mut session_cache_module_bytes = vec![];
+            session_cache_module.serialize(&mut session_cache_module_bytes).unwrap();
             assert_eq!(
-                module_bytes, session_cache_module,
+                module_bytes, session_cache_module_bytes,
                 "updated module bytes should equal with bytes in session cache"
             );
 

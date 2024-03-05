@@ -5,7 +5,7 @@
 use crate::{
     access_control::AccessControlState,
     data_cache::TransactionDataCache,
-    loader::{ChecksumStorage, Function, Loader, Resolver},
+    loader::{SessionStorage, Function, Loader, Resolver},
     native_extensions::NativeContextExtensions,
     native_functions::NativeContext,
     session_cache::SessionCache,
@@ -71,13 +71,13 @@ pub(crate) struct Interpreter {
 struct TypeWithLoader<'a, 'b, 'c> {
     ty: &'a Type,
     loader: &'b Loader,
-    checksum_storage: &'c dyn ChecksumStorage,
+    session_storage: &'c dyn SessionStorage,
 }
 
 impl<'a, 'b, 'c> TypeView for TypeWithLoader<'a, 'b, 'c> {
     fn to_type_tag(&self) -> TypeTag {
         self.loader
-            .type_to_type_tag(self.ty, self.checksum_storage)
+            .type_to_type_tag(self.ty, self.session_storage)
             .unwrap()
     }
 }
@@ -274,7 +274,7 @@ impl Interpreter {
                             ty_args.iter().map(|ty| TypeWithLoader {
                                 ty,
                                 loader,
-                                checksum_storage: checksum_store,
+                                session_storage: checksum_store,
                             }),
                             self.operand_stack
                                 .last_n(func.arg_count())
@@ -481,7 +481,7 @@ impl Interpreter {
             ty_args.iter().map(|ty| TypeWithLoader {
                 ty,
                 loader: resolver.loader(),
-                checksum_storage: checksum_store,
+                session_storage: checksum_store,
             }),
             args.iter(),
         )?;
@@ -626,7 +626,7 @@ impl Interpreter {
                         TypeWithLoader {
                             ty,
                             loader,
-                            checksum_storage: checksum_store,
+                            session_storage: checksum_store,
                         },
                         gv.view(),
                         bytes_loaded,
@@ -659,7 +659,7 @@ impl Interpreter {
             TypeWithLoader {
                 ty,
                 loader,
-                checksum_storage: checksum_store,
+                session_storage: checksum_store,
             },
             res.is_ok(),
         )?;
@@ -710,7 +710,7 @@ impl Interpreter {
             TypeWithLoader {
                 ty,
                 loader,
-                checksum_storage: checksum_store,
+                session_storage: checksum_store,
             },
             exists,
         )?;
@@ -741,7 +741,7 @@ impl Interpreter {
                         TypeWithLoader {
                             ty,
                             loader,
-                            checksum_storage: checksum_store,
+                            session_storage: checksum_store,
                         },
                         Some(&resource),
                     )?;
@@ -755,7 +755,7 @@ impl Interpreter {
                         TypeWithLoader {
                             ty,
                             loader,
-                            checksum_storage: checksum_store,
+                            session_storage: checksum_store,
                         },
                         val,
                     )?;
@@ -791,7 +791,7 @@ impl Interpreter {
                     TypeWithLoader {
                         ty,
                         loader,
-                        checksum_storage: checksum_store,
+                        session_storage: checksum_store,
                     },
                     gv.view().unwrap(),
                     true,
@@ -805,7 +805,7 @@ impl Interpreter {
                     TypeWithLoader {
                         ty,
                         loader,
-                        checksum_storage: checksum_store,
+                        session_storage: checksum_store,
                     },
                     &resource,
                     false,
@@ -2034,7 +2034,7 @@ impl Frame {
                 TypeWithLoader {
                     ty: $ty,
                     loader: resolver.loader(),
-                    checksum_storage: checksum_store,
+                    session_storage: checksum_store,
                 }
             };
         }
@@ -2663,7 +2663,7 @@ impl Frame {
                         gas_meter.charge_vec_len(TypeWithLoader {
                             ty,
                             loader: resolver.loader(),
-                            checksum_storage: checksum_store,
+                            session_storage: checksum_store,
                         })?;
                         let value = vec_ref.len(ty)?;
                         interpreter.operand_stack.push(value)?;
