@@ -1,9 +1,5 @@
 lockfileVersion: '6.0'
 
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
-
 dependencies:
   '@aptos-labs/aptos-client':
     specifier: ^0.1.0
@@ -7890,3 +7886,7 @@ packages:
       handlebars: 4.7.7
       json-schema-ref-parser: 9.0.9
     dev: true
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
